@@ -58,7 +58,7 @@ plt.tight_layout(); plt.savefig(FIG / "generalisation_and_speed.png", dpi=130); 
 plt.figure(figsize=(9, 3.6))
 plt.bar(np.arange(len(comp)), comp.st_continuity, color="#72b7b2")
 plt.xticks(np.arange(len(comp)), comp.model, rotation=20); plt.ylim(0.9, 1.0); plt.ylabel("continuity")
-plt.title("Student-test route continuity of top-1 predictions (no HMM)"); plt.tight_layout()
+plt.title("Student-test route continuity of top-1 predictions"); plt.tight_layout()
 plt.savefig(FIG / "route_continuity_models.png", dpi=130); plt.close()
 
 # 6. confusion matrices

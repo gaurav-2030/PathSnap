@@ -115,8 +115,10 @@ for p, c in [("train", "tab:blue"), ("student_test", "tab:orange")]:
     ax[0, 1].hist(s.track_len_km, bins=20, alpha=.6, label=p, color=c)
     ax[1, 0].hist(np.log10(s.n_arcs), bins=20, alpha=.6, label=p, color=c)
     ax[1, 1].scatter(s.lon_min, s.lat_min, label=p, color=c, s=15)
-ax[0, 0].set_title("GPS observations per trip"); ax[0, 1].set_title("Track length (km, haversine)")
-ax[1, 0].set_title("log10(number of road arcs) per trip"); ax[1, 1].set_title("Trip locations (longitude, latitude)")
+ax[0, 0].set_title("GPS observations per trip"); ax[0, 0].set_xlabel("number of GPS points in the trip"); ax[0, 0].set_ylabel("number of trips")
+ax[0, 1].set_title("Track length per trip"); ax[0, 1].set_xlabel("track length (km, haversine)"); ax[0, 1].set_ylabel("number of trips")
+ax[1, 0].set_title("Road-network size per trip"); ax[1, 0].set_xlabel("log10(number of road arcs)  (3 = 1,000, 4 = 10,000, 5 = 100,000)"); ax[1, 0].set_ylabel("number of trips")
+ax[1, 1].set_title("Trip locations (south-west corner of each track)"); ax[1, 1].set_xlabel("longitude (degrees)"); ax[1, 1].set_ylabel("latitude (degrees)")
 for a in ax.flat:
     a.legend(fontsize=8)
 plt.tight_layout(); plt.savefig(FIG / "eda_distributions.png", dpi=130); plt.close()
