@@ -1,5 +1,5 @@
 """PathSnap core: geometry, candidate generation, label alignment, features,
-network distances and route metrics."""
+network distances, Viterbi decoding and route metrics."""
 import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
@@ -254,6 +254,78 @@ class Trip:
         same = a1 == a2
         res = np.where(same, np.abs(t2 - t1) * L1, res)
         return res
+
+
+# ---------------------------------------------------------------- decoding
+def pair_table(trip, cand, limit=3000.0):
+    """All candidate pairs of consecutive observations with their driving distance (rd),
+    great-circle GPS step (gc) and time step (dt). Independent of decoder parameters."""
+    obs = cand.obs.values
+    starts = np.r_[0, np.flatnonzero(np.diff(obs)) + 1]
+    ends = np.r_[starts[1:], len(obs)]
+    n_obs = len(starts)
+    tab = {"starts": starts, "ends": ends, "n_obs": n_obs}
+    if n_obs < 2:
+        return tab
+    arcs = cand.arc.values; tt = cand.t.values
+    P1, P2, step = [], [], []
+    for i in range(1, n_obs):
+        r1 = np.arange(starts[i - 1], ends[i - 1]); r2 = np.arange(starts[i], ends[i])
+        g1, g2 = np.meshgrid(r1, r2, indexing="ij")
+        P1.append(g1.ravel()); P2.append(g2.ravel()); step.append(np.full(g1.size, i))
+    P1 = np.concatenate(P1); P2 = np.concatenate(P2); step = np.concatenate(step)
+    oi = obs[starts]
+    gc = np.hypot(np.diff(trip.gx[oi]), np.diff(trip.gy[oi]))
+    dt = np.diff(trip.t[oi])
+    tab.update(P1=P1, P2=P2, step=step,
+               rd=trip.route_dist(arcs[P1], tt[P1], arcs[P2], tt[P2], limit),
+               gc=gc[step - 1], dt=dt[step - 1],
+               bnd=np.r_[0, np.flatnonzero(np.diff(step)) + 1, len(step)])
+    return tab
+
+
+def log_transitions(tab, beta, gap_s):
+    """log P(transition) = -|driving distance - GPS distance| / (beta * sqrt(dt)).
+    Unreachable pairs get -inf; across a time gap longer than gap_s every pair is allowed."""
+    b = beta * np.sqrt(np.maximum(tab["dt"], 1.0))
+    logt = -np.abs(tab["rd"] - tab["gc"]) / b
+    logt[~np.isfinite(tab["rd"])] = -np.inf
+    logt[tab["dt"] > gap_s] = 0.0
+    return logt
+
+
+def viterbi(logp, tab, logt, emis_w=1.0):
+    """Viterbi over candidate states (rows). Returns the chosen row per observation and
+    the number of chain breaks (steps where no candidate pair was connected)."""
+    starts, ends, n_obs = tab["starts"], tab["ends"], tab["n_obs"]
+    best = np.empty(n_obs, dtype=np.int64)
+    score = emis_w * logp[starts[0]:ends[0]].copy()
+    if n_obs == 1:
+        best[0] = starts[0] + int(np.argmax(score))
+        return best, 0
+    bnd = tab["bnd"]
+    backs = [None] * n_obs
+    breaks = 0
+    for i in range(1, n_obs):
+        n1 = ends[i - 1] - starts[i - 1]; n2 = ends[i] - starts[i]
+        lt = logt[bnd[i - 1]:bnd[i]].reshape(n1, n2)
+        tot = score[:, None] + lt
+        bp = np.argmax(tot, axis=0)
+        val = tot[bp, np.arange(n2)]
+        if not np.isfinite(val).any():
+            # disconnected step: restart the chain from the best state so far
+            breaks += 1
+            bp = np.full(n2, int(np.argmax(score)))
+            val = np.full(n2, score.max())
+        score = val + emis_w * logp[starts[i]:ends[i]]
+        score -= score.max()
+        backs[i] = bp
+    j = int(np.argmax(score))
+    for i in range(n_obs - 1, -1, -1):
+        best[i] = starts[i] + j
+        if i > 0:
+            j = int(backs[i][j])
+    return best, breaks
 
 
 def argmax_rows(cand, score):

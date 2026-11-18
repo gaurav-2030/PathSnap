@@ -83,7 +83,7 @@ if (RES / "history_MLP.json").exists():
     ax2.set_ylabel("validation accuracy (10% hold-out)")
     fig.legend(loc="center right", fontsize=8); plt.title("MLP training history (final fit)"); plt.tight_layout()
     plt.savefig(FIG / "history_mlp.png", dpi=130); plt.close()
-for tag in ["HistGradientBoosting"]:
+for tag in ["HistGradientBoosting", "HGB_tuned"]:
     p = RES / f"history_{tag}.json"
     if p.exists():
         h = json.load(open(p))
